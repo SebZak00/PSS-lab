@@ -1,6 +1,6 @@
 # System Zarządzania Zadaniami (Task Manager)
 **Przedmiot:** Programowanie Systemów Sieciowych (PSS)
-**Autor:** [Twoje Imię i Nazwisko], Grupa: [Twój numer grupy]
+**Autor:** Sebastian Zaczkiewicz, Grupa: 2
 
 ## Opis Projektu
 Aplikacja webowa typu To-Do List, służąca do zarządzania zadaniami w zespole. Projekt zakłada podział użytkowników na dwie role: **Administrator** (może zarządzać wszystkimi zadaniami i przydzielać je pracownikom) oraz **Pracownik** (może przeglądać przypisane mu zadania i zmieniać ich status).
@@ -10,15 +10,8 @@ Aplikacja webowa typu To-Do List, służąca do zarządzania zadaniami w zespole
 * **Baza danych:** MySQL
 * **Frontend:** HTML5, CSS3, JavaScript (AJAX)
 
-## Instrukcja uruchomienia lokalnego
-1. Sklonuj repozytorium do folderu `htdocs` w środowisku XAMPP.
-2. Uruchom moduły **Apache** i **MySQL** w panelu XAMPP.
-3. W panelu phpMyAdmin utwórz bazę danych o nazwie `pss_task_manager`.
-4. Zaimportuj plik `1_BazaDanych/baza.sql`, aby utworzyć tabele i relacje.
-5. Uruchom projekt w przeglądarce pod adresem: `http://localhost/NAZWA_TWOJEGO_FOLDERU`
-
 ## Realizowane wymagania (Harmonogram PSS)
-- [x] **Zad 1:** Projekt Bazy Danych (Tabele: Użytkownicy, Zadania + relacje).
+- [ ] **Zad 1:** Projekt Bazy Danych (Tabele: Użytkownicy, Zadania + relacje).
 - [ ] **Zad 2:** Schemat struktury (podział na DAO i Serwisy).
 - [ ] **Zad 3:** Stronicowanie i wyszukiwanie w widoku listy zadań.
 - [ ] **Zad 4:** Wykorzystanie AJAX (np. do szybkiej zmiany statusu zadania bez przeładowania strony).
