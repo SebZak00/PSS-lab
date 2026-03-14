@@ -3,7 +3,7 @@
 **Autor:** Sebastian Zaczkiewicz, Grupa: 2
 
 ## Opis Projektu
-Aplikacja webowa typu To-Do List, służąca do zarządzania zadaniami w zespole. Projekt zakłada podział użytkowników na dwie role: **Administrator** (może zarządzać wszystkimi zadaniami i przydzielać je pracownikom) oraz **Pracownik** (może przeglądać przypisane mu zadania i zmieniać ich status).
+Aplikacja webowa służąca do zarządzania zadaniami w zespole. Projekt zakłada podział użytkowników na role: **Administrator** (może zarządzać uzytkownikami, ich rolami i ich prawami do edycji), **TeamLeader** (tworzy, przypisuje i aktualizuje taski)  oraz **Pracownik** (może przeglądać przypisane mu zadania i zmieniać ich status, dodawac notatki, requestowac o przesuniecie ddl itp.).
 
 ## Stos Technologiczny
 * **Backend:** PHP (struktura oparta na warstwach DAO i Serwisach)
