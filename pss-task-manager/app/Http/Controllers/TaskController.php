@@ -3,97 +3,124 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\Task; // Importujemy model zadań
+use App\Models\Task;
+use App\Models\Role;
 use Illuminate\Http\Request;
-
 
 class TaskController extends Controller
 {
-    public function index()
-{
-    $user = auth()->user();
-
-    if ($user->hasRole('Administrator')) {
-        $uzytkownicy = User::with('roles')->get();
-        $wszystkieRole = \App\Models\Role::all();
-        return view('dashboard', compact('uzytkownicy', 'wszystkieRole'));
-    } 
-
-    if ($user->hasRole('TeamLeader')) {
-        // TeamLeader widzi wszystko
-        $zadania = Task::with('users')->get();
-    } else {
-        // Pracownik widzi tylko zadania, do których jest przypisany
-        $zadania = $user->tasks()->with('users')->get();
+    // ==========================================
+    // METODY POMOCNICZE (DRY & Security)
+    // ==========================================
+    
+    private function ensureTeamLeader()
+    {
+        if (!auth()->user()->hasRole('TeamLeader')) {
+            abort(403, 'Brak uprawnień. Tylko TeamLeader ma dostęp do tej akcji.');
+        }
     }
 
-    return view('dashboard', compact('zadania'));
-}
+    private function ensureTaskAccess(Task $task)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('TeamLeader') && !$task->users->contains($user->id)) {
+            abort(403, 'Nie masz dostępu do tego zadania.');
+        }
+    }
+
+    // ==========================================
+    // GŁÓWNE METODY KONTROLERA
+    // ==========================================
+
+    public function index(Request $request)
+    {
+        $user = auth()->user();
+
+        // WIDOK ADMINA (Dodajemy paginację)
+        if ($user->hasRole('Administrator')) {
+            $uzytkownicy = User::with('roles')->paginate(10);
+            $wszystkieRole = Role::all();
+            return view('dashboard', compact('uzytkownicy', 'wszystkieRole'));
+        } 
+
+        // WIDOK PRACOWNIKA / TEAM LEADERA
+        $query = $user->hasRole('TeamLeader') 
+            ? Task::with('users') 
+            : $user->tasks()->with('users');
+
+        // --- WYSZUKIWANIE I FILTROWANIE ---
+        if ($request->filled('search')) {
+            $query->where('tytul', 'like', '%' . $request->search . '%');
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // --- PAGINACJA (Zamiast ->get() dajemy ->paginate()) ---
+        $zadania = $query->paginate(5); 
+
+        return view('dashboard', compact('zadania'));
+    }
 
     public function create()
     {
-        // ZABIERAMY DOSTĘP ADMINOWI - tylko TeamLeader ma tu wstęp
-        if (!auth()->user()->hasRole('TeamLeader')) {
-            abort(403, 'Tylko TeamLeader może dodawać nowe zadania.');
-        }
-
-        $pracownicy = \App\Models\User::all(); 
+        $this->ensureTeamLeader();
+        $pracownicy = User::all(); 
         return view('tasks.create', compact('pracownicy'));
     }
 
-public function store(Request $request)
-{
-    // Walidujemy, oczekując tablicy ID przypisanych użytkowników
-    $validated = $request->validate([
-        'tytul' => 'required|max:255',
-        'opis' => 'required',
-        'termin_wykonania' => 'required|date',
-        'przypisani' => 'required|array', // Zmieniliśmy na tablicę!
-        'przypisani.*' => 'exists:users,id',
-    ]);
-
-    // Tworzymy zadanie
-    $task = Task::create([
-        'tytul' => $validated['tytul'],
-        'opis' => $validated['opis'],
-        'status' => 'Nowe',
-        'termin_wykonania' => $validated['termin_wykonania'],
-        'id_tworcy' => auth()->id(),
-    ]);
-
-    // Magia relacji Wiele-do-Wielu: Przypisujemy wszystkich zaznaczonych pracowników
-    $task->users()->attach($validated['przypisani']);
-
-    return redirect()->route('dashboard')->with('success', 'Zadanie dodane i przypisane do zespołu!');
-}
-public function edit(Task $task)
+    public function store(Request $request)
     {
-        // Tylko TeamLeader ma prawo edytować zadania
-        if (!auth()->user()->hasRole('TeamLeader')) {
-            abort(403, 'Brak uprawnień do edycji zadań.');
-        }
+        $this->ensureTeamLeader();
 
+        $validated = $request->validate([
+            'tytul' => 'required|max:255',
+            'opis' => 'required',
+            // WALIDACJA KONTEKSTOWA: Data wykonania od dziś w przód!
+            'termin_wykonania' => 'required|date|after_or_equal:today',
+            'przypisani' => 'required|array',
+            'przypisani.*' => 'exists:users,id',
+        ], [
+            'termin_wykonania.after_or_equal' => 'Błąd: Termin wykonania zadania nie może być datą z przeszłości!'
+        ]);
+
+        $task = Task::create([
+            'tytul' => $validated['tytul'],
+            'opis' => $validated['opis'],
+            'status' => 'Nowe',
+            'termin_wykonania' => $validated['termin_wykonania'],
+            'id_tworcy' => auth()->id(),
+        ]);
+
+        $task->users()->attach($validated['przypisani']);
+
+        return redirect()->route('dashboard')->with('success', 'Zadanie dodane i przypisane do zespołu!');
+    }
+
+    public function edit(Task $task)
+    {
+        $this->ensureTeamLeader();
         $pracownicy = User::all();
-        // Przekazujemy konkretne zadanie i listę pracowników do widoku
         return view('tasks.edit', compact('task', 'pracownicy'));
     }
 
     public function update(Request $request, Task $task)
     {
-        if (!auth()->user()->hasRole('TeamLeader')) {
-            abort(403, 'Brak uprawnień do edycji zadań.');
-        }
+        $this->ensureTeamLeader();
 
         $validated = $request->validate([
             'tytul' => 'required|max:255',
             'opis' => 'required',
             'status' => 'required|string',
-            'termin_wykonania' => 'required|date',
-            'przypisani' => 'array', // Może być puste, jeśli odznaczymy wszystkich
+            // WALIDACJA KONTEKSTOWA
+            'termin_wykonania' => 'required|date|after_or_equal:today',
+            'przypisani' => 'array', 
             'przypisani.*' => 'exists:users,id',
+        ], [
+            'termin_wykonania.after_or_equal' => 'Błąd: Termin wykonania zadania nie może być datą z przeszłości!'
         ]);
 
-        // Aktualizacja głównych danych zadania
         $task->update([
             'tytul' => $validated['tytul'],
             'opis' => $validated['opis'],
@@ -101,23 +128,14 @@ public function edit(Task $task)
             'termin_wykonania' => $validated['termin_wykonania'],
         ]);
 
-        // Synchronizacja przypisanych użytkowników (nadpisuje stare powiązania nowymi)
         $task->users()->sync($request->przypisani ?? []);
 
         return redirect()->route('dashboard')->with('success', 'Zadanie zostało pomyślnie zaktualizowane!');
     }
+
     public function show(Task $task)
     {
-        $user = auth()->user();
-        $isTL = $user->hasRole('TeamLeader');
-        $isAssigned = $task->users->contains($user->id);
-
-        // Zabezpieczenie: Zadanie mogą oglądać tylko przypisani pracownicy i TL
-        if (!$isTL && !$isAssigned) {
-            abort(403, 'Nie masz dostępu do tego zadania.');
-        }
-
-        // Pobieramy zadanie razem z jego przypisanymi ludźmi oraz notatkami (i autorami tych notatek)
+        $this->ensureTaskAccess($task);
         $task->load(['users', 'notes.user']); 
 
         return view('tasks.show', compact('task'));
@@ -125,6 +143,8 @@ public function edit(Task $task)
 
     public function addNote(Request $request, Task $task)
     {
+        $this->ensureTaskAccess($task);
+
         $request->validate([
             'tresc' => 'required|string',
             'typ' => 'required|in:zwykla_notatka,prosba_o_ddl'
@@ -142,11 +162,7 @@ public function edit(Task $task)
     public function updateStatus(Request $request, Task $task)
     {
         $user = auth()->user();
-        
-        $isTL = $user->hasRole('TeamLeader');
-        $isAssigned = $task->users->contains($user->id);
-
-        if (!$isTL && !$isAssigned) {
+        if (!$user->hasRole('TeamLeader') && !$task->users->contains($user->id)) {
             return response()->json(['error' => 'Brak uprawnień do zmiany statusu tego zadania'], 403);
         }
 

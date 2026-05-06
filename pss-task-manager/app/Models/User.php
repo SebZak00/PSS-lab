@@ -2,43 +2,31 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    // ==========================================
+    // WŁAŚCIWOŚCI
+    // ==========================================
+
     protected $fillable = [
         'name',
         'email',
         'password',
+        'created_by',
+        'updated_by',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -46,19 +34,57 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    public function roles()
-{
-    return $this->belongsToMany(Role::class, 'role_user');
-}
 
-// Pomocnicza funkcja, którą wykorzystamy zaraz w widokach
-public function hasRole($roleName)
-{
-    return $this->roles->contains('nazwa', $roleName);
-}
-// Użytkownik może być przypisany do wielu zadań
-public function tasks()
-{
-    return $this->belongsToMany(Task::class, 'task_user');
-}
+    // ==========================================
+    // RELACJE
+    // ==========================================
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user');
+    }
+
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_user');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    // ==========================================
+    // METODY POMOCNICZE
+    // ==========================================
+
+    public function hasRole($roleName)
+    {
+        return $this->roles->contains('nazwa', $roleName);
+    }
+
+    // ==========================================
+    // EVENTY (AUTOMATY)
+    // ==========================================
+
+    protected static function booted()
+    {
+        static::creating(function ($user) {
+            if (auth()->check()) {
+                $user->created_by = auth()->id();
+                $user->updated_by = auth()->id();
+            }
+        });
+
+        static::updating(function ($user) {
+            if (auth()->check()) {
+                $user->updated_by = auth()->id();
+            }
+        });
+    }
 }
