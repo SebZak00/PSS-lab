@@ -46,4 +46,19 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    public function roles()
+{
+    return $this->belongsToMany(Role::class, 'role_user');
+}
+
+// Pomocnicza funkcja, którą wykorzystamy zaraz w widokach
+public function hasRole($roleName)
+{
+    return $this->roles->contains('nazwa', $roleName);
+}
+// Użytkownik może być przypisany do wielu zadań
+public function tasks()
+{
+    return $this->belongsToMany(Task::class, 'task_user');
+}
 }
